@@ -14,6 +14,7 @@ app.use(express.json());
 
 let tasks = [];
 let users = [];
+let activeSockets = {}; // ✅ moved to global so it persists across socket events
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
@@ -22,18 +23,20 @@ io.on("connection", (socket) => {
   socket.emit("loadTasks", tasks);
   socket.emit("loadUsers", users);
 
-  let activeSockets = {};
-
   socket.on("registerUser", (user) => {
     activeSockets[socket.id] = user.username;
+    if (!users.find((u) => u.username === user.username)) {
+      users.push(user); // Avoid duplicate users
+    }
+    io.emit("loadUsers", users);
     updateOnlineUsers();
   });
-  
+
   socket.on("disconnect", () => {
     delete activeSockets[socket.id];
     updateOnlineUsers();
   });
-  
+
   function updateOnlineUsers() {
     const list = Object.values(activeSockets);
     io.emit("onlineUsers", list);
@@ -65,8 +68,8 @@ io.on("connection", (socket) => {
     io.emit("loadUsers", users);
     io.emit("userNotified", `${username} was removed from the dashboard`);
   });
-
-
 });
 
-server.listen(5000, () => console.log("✅ Server running on port 5000"));
+// ✅ Automatically use Render’s assigned port
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
